@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Caesar Cipher</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="loginContainer" class="container">
+        <h2>Login to Secure Caesar Cipher</h2>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="loginButton" onclick="login()">Login</button>
+        <p id="lockMessage" class="hidden"></p>
+    </div>
+
+    <div id="cipherContainer" class="container hidden">
+        <h2>Caesar Cipher Encryption & Decryption</h2>
+        <textarea id="plaintext" placeholder="Enter text"></textarea>
+        <input type="number" id="shift" placeholder="Shift (e.g., 3)">
+        <button onclick="encrypt()">Encrypt</button>
+        <button onclick="decrypt()">Decrypt</button>
+        
+        <div class="result-container">
+            <p id="cipherResult"></p>
+            <button id="copyButton" class="hidden" onclick="copyToClipboard()">Copy</button>
+        </div>
+
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
