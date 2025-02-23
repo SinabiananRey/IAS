@@ -1,57 +1,78 @@
 // Default login credentials
 const validUser = "admin";
 const validPass = "1234";
-let loginAttempts = parseInt(localStorage.getItem("loginAttempts")) || 0;
-const lockoutTime = 30; // 30 seconds lockout
+let loginAttempts = 0;
+let lockoutTime = 30; // 30 seconds lockout
+let captchaA, captchaB, captchaResult; // CAPTCHA values
+
+// Function to generate CAPTCHA
+function generateCaptcha() {
+    captchaA = Math.floor(Math.random() * 10) + 1;
+    captchaB = Math.floor(Math.random() * 10) + 1;
+    captchaResult = captchaA + captchaB;
+    document.getElementById("captchaText").innerText = `What is ${captchaA} + ${captchaB}?`;
+}
 
 // Function to handle login
 function login() {
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
+    const captchaAnswer = parseInt(document.getElementById("captchaAnswer").value);
+    const captchaContainer = document.getElementById("captchaContainer");
     const lockMessage = document.getElementById("lockMessage");
     const loginButton = document.getElementById("loginButton");
 
-    let lockedOutUntil = localStorage.getItem("lockedOutUntil");
-    
-    if (lockedOutUntil && Date.now() < lockedOutUntil) {
+    if (localStorage.getItem("lockedOut") === "true") {
         alert("Too many failed attempts! Please wait.");
         return;
     }
 
+    // Check if CAPTCHA is required
+    if (loginAttempts >= 3) {
+        if (captchaContainer.classList.contains("hidden")) {
+            captchaContainer.classList.remove("hidden");
+            generateCaptcha();
+            alert("Too many failed attempts! Solve the CAPTCHA to continue.");
+            return;
+        }
+        if (captchaAnswer !== captchaResult) {
+            alert("Incorrect CAPTCHA! Try again.");
+            generateCaptcha(); // Refresh CAPTCHA
+            return;
+        }
+    }
+
+    // Validate login
     if (username === validUser && password === validPass) {
         sessionStorage.setItem("loggedIn", "true");
         document.getElementById("loginContainer").classList.add("hidden");
         document.getElementById("cipherContainer").classList.remove("hidden");
-        localStorage.removeItem("loginAttempts"); // Reset attempts on success
-        localStorage.removeItem("lockedOutUntil");
     } else {
         loginAttempts++;
-        localStorage.setItem("loginAttempts", loginAttempts);
         alert(`Invalid credentials! Attempt ${loginAttempts}/3`);
 
         if (loginAttempts >= 3) {
+            captchaContainer.classList.remove("hidden"); // Show CAPTCHA
+        }
+
+        if (loginAttempts >= 5) {
             lockMessage.classList.remove("hidden");
             lockMessage.innerText = `Too many attempts! Try again in ${lockoutTime} seconds.`;
-            
-            // Store the lockout expiration timestamp
-            let unlockTime = Date.now() + lockoutTime * 1000;
-            localStorage.setItem("lockedOutUntil", unlockTime);
-
+            localStorage.setItem("lockedOut", "true");
             loginButton.disabled = true;
             loginButton.classList.add("disabled");
 
             let countdown = setInterval(() => {
-                let remainingTime = Math.ceil((unlockTime - Date.now()) / 1000);
-                if (remainingTime <= 0) {
+                lockoutTime--;
+                lockMessage.innerText = `Too many attempts! Try again in ${lockoutTime} seconds.`;
+                if (lockoutTime <= 0) {
                     clearInterval(countdown);
-                    localStorage.removeItem("lockedOutUntil");
-                    localStorage.removeItem("loginAttempts");
+                    localStorage.removeItem("lockedOut");
+                    loginAttempts = 0;
                     lockMessage.classList.add("hidden");
                     loginButton.disabled = false;
                     loginButton.classList.remove("disabled");
-                    loginAttempts = 0;
-                } else {
-                    lockMessage.innerText = `Too many attempts! Try again in ${remainingTime} seconds.`;
+                    lockoutTime = 30;
                 }
             }, 1000);
         }
@@ -60,30 +81,6 @@ function login() {
 
 // Function to check login session
 window.onload = function () {
-    let lockedOutUntil = localStorage.getItem("lockedOutUntil");
-
-    if (lockedOutUntil && Date.now() < lockedOutUntil) {
-        let remainingTime = Math.ceil((lockedOutUntil - Date.now()) / 1000);
-        document.getElementById("lockMessage").classList.remove("hidden");
-        document.getElementById("lockMessage").innerText = `Too many attempts! Try again in ${remainingTime} seconds.`;
-        document.getElementById("loginButton").disabled = true;
-        document.getElementById("loginButton").classList.add("disabled");
-
-        let countdown = setInterval(() => {
-            remainingTime = Math.ceil((lockedOutUntil - Date.now()) / 1000);
-            if (remainingTime <= 0) {
-                clearInterval(countdown);
-                localStorage.removeItem("lockedOutUntil");
-                localStorage.removeItem("loginAttempts");
-                document.getElementById("lockMessage").classList.add("hidden");
-                document.getElementById("loginButton").disabled = false;
-                document.getElementById("loginButton").classList.remove("disabled");
-            } else {
-                document.getElementById("lockMessage").innerText = `Too many attempts! Try again in ${remainingTime} seconds.`;
-            }
-        }, 1000);
-    }
-
     if (sessionStorage.getItem("loggedIn") === "true") {
         document.getElementById("loginContainer").classList.add("hidden");
         document.getElementById("cipherContainer").classList.remove("hidden");
@@ -97,60 +94,50 @@ function logout() {
     document.getElementById("cipherContainer").classList.add("hidden");
 }
 
-// Function to encrypt using Caesar Cipher
+// Caesar Cipher function
+function caesarCipher(text, shift, encrypt = true) {
+    return text.split('').map(char => {
+        if (char.match(/[a-zA-Z]/)) {
+            const base = char.charCodeAt(0) >= 97 ? 97 : 65;
+            const offset = encrypt ? shift : -shift;
+            return String.fromCharCode(((char.charCodeAt(0) - base + offset + 26) % 26) + base);
+        }
+        return char;
+    }).join('');
+}
+
+// Encrypt function
 function encrypt() {
-    let text = document.getElementById("plaintext").value;
-    let shift = parseInt(document.getElementById("shift").value);
-    if (!text || isNaN(shift)) {
-        alert("Please enter text and shift value!");
+    const inputText = document.getElementById('inputText').value;
+    const shift = parseInt(document.getElementById('shiftKey').value);
+
+    if (isNaN(shift) || shift < 1 || shift > 25) {
+        alert("Please enter a valid shift key (1-25).");
         return;
     }
 
-    let result = "";
-    for (let i = 0; i < text.length; i++) {
-        let char = text[i];
-
-        if (char.match(/[a-z]/i)) {
-            let code = text.charCodeAt(i);
-            let base = code >= 65 && code <= 90 ? 65 : 97;
-            char = String.fromCharCode(((code - base + shift) % 26 + 26) % 26 + base);
-        }
-
-        result += char;
-    }
-
-    document.getElementById("cipherResult").innerText = `Encrypted: ${result}`;
-    document.getElementById("copyButton").classList.remove("hidden");
+    const encryptedText = caesarCipher(inputText, shift, true);
+    document.getElementById('outputText').value = encryptedText;
 }
 
-// Function to decrypt using Caesar Cipher
+// Decrypt function
 function decrypt() {
-    let text = document.getElementById("plaintext").value;
-    let shift = parseInt(document.getElementById("shift").value);
-    if (!text || isNaN(shift)) {
-        alert("Please enter text and shift value!");
+    const encryptedText = document.getElementById('inputText').value;
+    const shift = parseInt(document.getElementById('shiftKey').value);
+
+    if (isNaN(shift) || shift < 1 || shift > 25) {
+        alert("Please enter a valid shift key (1-25).");
         return;
     }
 
-    let result = "";
-    for (let i = 0; i < text.length; i++) {
-        let char = text[i];
-
-        if (char.match(/[a-z]/i)) {
-            let code = text.charCodeAt(i);
-            let base = code >= 65 && code <= 90 ? 65 : 97;
-            char = String.fromCharCode(((code - base - shift) % 26 + 26) % 26 + base);
-        }
-
-        result += char;
-    }
-
-    document.getElementById("cipherResult").innerText = `Decrypted: ${result}`;
-    document.getElementById("copyButton").classList.remove("hidden");
+    const decryptedText = caesarCipher(encryptedText, shift, false);
+    document.getElementById('outputText').value = decryptedText;
 }
 
-// Function to copy text to clipboard
+// Copy to clipboard function
 function copyToClipboard() {
-    navigator.clipboard.writeText(document.getElementById("cipherResult").innerText.split(": ")[1]);
+    const outputText = document.getElementById('outputText');
+    outputText.select();
+    document.execCommand("copy");
     alert("Copied to clipboard!");
 }
